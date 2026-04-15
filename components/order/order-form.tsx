@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, FormEvent } from "react"
+import { useState, useCallback, FormEvent, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Upload, Calendar, FileText, Info, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -17,21 +17,41 @@ import {
 import { cn } from "@/lib/utils"
 import { apiRequest, ApiError } from "@/lib/api"
 import { getAuthToken } from "@/lib/auth"
+import { Skeleton } from "@/components/ui/skeleton"
 
-const serviceTypes = [
-  { value: "assignment", label: "Assignment Help", basePrice: 299 },
-  { value: "task", label: "Task Help", basePrice: 249 },
-  { value: "ppt", label: "PPT Making", basePrice: 199 },
-  { value: "resume", label: "Resume Builder", basePrice: 149 },
-  { value: "project", label: "Mini Project", basePrice: 499 },
-  { value: "other", label: "Other Academic Help", basePrice: 199 },
-]
+interface ServiceSettings {
+  [key: string]: {
+    label: string
+    basePrice: number
+  }
+}
 
-const urgencyOptions = [
-  { value: "normal", label: "Normal (5-7 days)", multiplier: 1 },
-  { value: "urgent", label: "Urgent (2-3 days)", multiplier: 1.5 },
-  { value: "express", label: "Express (24 hours)", multiplier: 2 },
-]
+interface UrgencySettings {
+  [key: string]: {
+    label: string
+    multiplier: number
+  }
+}
+
+interface SettingsData {
+  services: ServiceSettings
+  urgency: UrgencySettings
+}
+
+const defaultServices: ServiceSettings = {
+  assignment: { label: "Assignment Help", basePrice: 299 },
+  task: { label: "Task Help", basePrice: 249 },
+  ppt: { label: "PPT Making", basePrice: 199 },
+  resume: { label: "Resume Builder", basePrice: 149 },
+  project: { label: "Mini Project", basePrice: 499 },
+  other: { label: "Other Academic Help", basePrice: 199 },
+}
+
+const defaultUrgency: UrgencySettings = {
+  normal: { label: "Normal (5-7 days)", multiplier: 1 },
+  urgent: { label: "Urgent (2-3 days)", multiplier: 1.5 },
+  express: { label: "Express (24 hours)", multiplier: 2 },
+}
 
 interface CreatedOrder {
   _id: string
@@ -51,14 +71,28 @@ export function OrderForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState("")
   const [submitSuccess, setSubmitSuccess] = useState("")
+  const [services, setServices] = useState<ServiceSettings>(defaultServices)
+  const [urgencyOpts, setUrgencyOpts] = useState<UrgencySettings>(defaultUrgency)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [showPayment, setShowPayment] = useState(false)
+
+  useEffect(() => {
+    apiRequest<SettingsData>("/api/settings")
+      .then((data) => {
+        setServices(data.services)
+        setUrgencyOpts(data.urgency)
+      })
+      .catch(() => {})
+      .finally(() => setSettingsLoaded(true))
+  }, [])
 
   const calculatePrice = useCallback(() => {
-    const selectedService = serviceTypes.find((s) => s.value === service)
-    const selectedUrgency = urgencyOptions.find((u) => u.value === urgency)
+    const selectedService = services[service]
+    const selectedUrgency = urgencyOpts[urgency]
 
     if (!selectedService || !selectedUrgency) return 0
     return Math.round(selectedService.basePrice * selectedUrgency.multiplier)
-  }, [service, urgency])
+  }, [service, urgency, services, urgencyOpts])
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -93,7 +127,6 @@ export function OrderForm() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitError("")
-    setSubmitSuccess("")
 
     const token = getAuthToken()
     if (!token) {
@@ -107,36 +140,23 @@ export function OrderForm() {
       return
     }
 
-    setIsSubmitting(true)
-    try {
-      const order = await apiRequest<CreatedOrder>("/api/orders", {
-        method: "POST",
-        body: {
-          title: `${subject} - ${service}`,
-          serviceType: service,
-          subject,
-          instructions,
-          files: files.map((file) => file.name),
-          urgency,
-          quotedPrice: price,
-          finalPrice: price,
-          amountPaid: price,
-          paymentMethod: "upi",
-          paymentGatewayReference: `APP-${Date.now()}`,
-        },
-      })
+    router.push(`/pay/create?price=${price}&service=${service}&subject=${encodeURIComponent(subject)}&urgency=${urgency}&instructions=${encodeURIComponent(instructions)}`)
+  }
 
-      setSubmitSuccess("Order created and payment captured successfully.")
-      router.push(`/orders/${order._id}`)
-    } catch (error) {
-      if (error instanceof ApiError) {
-        setSubmitError(error.message)
-      } else {
-        setSubmitError("Unable to place order right now.")
-      }
-    } finally {
-      setIsSubmitting(false)
+  const handleProceedToPayment = () => {
+    const price = calculatePrice()
+    if (!price || !service || !subject) {
+      setSubmitError("Please complete all details")
+      return
     }
+    const params = new URLSearchParams({
+      price: price.toString(),
+      service,
+      subject,
+      urgency,
+      instructions,
+    })
+    router.push(`/pay/create?${params.toString()}`)
   }
 
   const price = calculatePrice()
@@ -150,8 +170,8 @@ export function OrderForm() {
             <SelectValue placeholder="Select a service" />
           </SelectTrigger>
           <SelectContent>
-            {serviceTypes.map((type) => (
-              <SelectItem key={type.value} value={type.value}>
+            {Object.entries(services).map(([key, type]) => (
+              <SelectItem key={key} value={key}>
                 {type.label}
               </SelectItem>
             ))}
@@ -248,8 +268,8 @@ export function OrderForm() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {urgencyOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
+            {Object.entries(urgencyOpts).map(([key, option]) => (
+              <SelectItem key={key} value={key}>
                 {option.label}
               </SelectItem>
             ))}

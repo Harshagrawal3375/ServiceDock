@@ -1,37 +1,61 @@
 "use client"
 
 import Link from "next/link"
-import { Store, HelpCircle, Star } from "lucide-react"
+import { Store, HelpCircle, Star, ClipboardList } from "lucide-react"
+import { useEffect, useState } from "react"
+import { apiRequest, ApiError } from "@/lib/api"
+import { useAuthToken } from "@/hooks/use-auth-token"
 
-const quickActions = [
-  {
-    title: "Digital Store",
-    description: "Notes, templates & more",
-    icon: Store,
-    href: "/store",
-    color: "bg-info/10 text-info",
-  },
-  {
-    title: "How it works",
-    description: "Learn about our process",
-    icon: HelpCircle,
-    href: "#",
-    color: "bg-warning/10 text-warning",
-  },
-  {
-    title: "Reviews",
-    description: "See what students say",
-    icon: Star,
-    href: "#",
-    color: "bg-success/10 text-success",
-  },
-]
+interface OrderItem {
+  _id: string
+}
 
 export function HomeQuickActions() {
+  const { token, isHydrated } = useAuthToken()
+  const [orderCount, setOrderCount] = useState(0)
+
+  useEffect(() => {
+    if (!token) return
+    apiRequest<OrderItem[]>("/api/orders")
+      .then(data => setOrderCount(data.length))
+      .catch(() => {})
+  }, [token])
+
+  const quickActions = [
+    {
+      title: "My Orders",
+      description: orderCount > 0 ? `${orderCount} orders placed` : "View your orders",
+      icon: ClipboardList,
+      href: "/orders",
+      color: "bg-primary/10 text-primary",
+    },
+    {
+      title: "Digital Store",
+      description: "Notes, templates & more",
+      icon: Store,
+      href: "/store",
+      color: "bg-info/10 text-info",
+    },
+    {
+      title: "How it works",
+      description: "Learn about our process",
+      icon: HelpCircle,
+      href: "#",
+      color: "bg-warning/10 text-warning",
+    },
+    {
+      title: "Reviews",
+      description: "See what students say",
+      icon: Star,
+      href: "#",
+      color: "bg-success/10 text-success",
+    },
+  ]
+
   return (
     <section className="pb-4">
       <h2 className="text-lg font-semibold text-foreground mb-4">Quick Links</h2>
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         {quickActions.map((action) => (
           <Link 
             key={action.title}

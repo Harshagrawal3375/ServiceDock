@@ -115,6 +115,8 @@ app.use("/api/auth", require("./routes/auth"));
 app.use("/api/orders", require("./routes/order"));
 app.use("/api/transactions", require("./routes/transaction"));
 app.use("/api/admin", require("./routes/admin"));
+app.use("/api/payment", require("./routes/payment"));
+app.use("/api/settings", require("./routes/settings"));
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });

@@ -300,4 +300,53 @@ router.patch("/:id/return-decision", authenticate, authorize("admin"), async (re
   }
 });
 
+router.delete("/:id", authenticate, authorize("admin"), async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    await Order.findByIdAndDelete(req.params.id);
+    return res.json({ message: "Order deleted" });
+  } catch (error) {
+    return res.status(500).json({ message: "Unable to delete order", error: error.message });
+  }
+});
+
+router.delete("/:id/cancel", authenticate, authorize("client"), async (req, res) => {
+  try {
+    const order = await Order.findOne({ _id: req.params.id, client: req.user.id });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    if (order.status === "completed" || order.status === "returned" || order.status === "refunded") {
+      return res.status(400).json({ message: "Cannot cancel completed order" });
+    }
+
+    const refundAmount = order.payment.amountPaid;
+    
+    order.status = "cancelled";
+    
+    if (refundAmount > 0) {
+      order.payment.status = "refunded";
+      order.payment.amountRefunded = refundAmount;
+      order.returnRequest = {
+        status: "approved",
+        reason: "Order cancelled by client",
+        requestedAt: new Date(),
+        reviewedAt: new Date(),
+        refundAmount: refundAmount,
+        contentReturned: false,
+        moneyReturned: true,
+      };
+    }
+    
+    await order.save();
+    return res.json({ message: "Order cancelled", refunded: refundAmount > 0, refundAmount });
+  } catch (error) {
+    return res.status(500).json({ message: "Unable to cancel order", error: error.message });
+  }
+});
+
 module.exports = router;

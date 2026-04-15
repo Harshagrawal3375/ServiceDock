@@ -111,7 +111,7 @@ router.get("/clients", authenticate, authorize("admin"), async (req, res) => {
 router.get("/orders", authenticate, authorize("admin"), async (req, res) => {
   try {
     const query = {};
-    const { status, returnStatus } = req.query;
+    const { status, returnStatus, clientId } = req.query;
 
     if (status) {
       query.status = status;
@@ -121,6 +121,10 @@ router.get("/orders", authenticate, authorize("admin"), async (req, res) => {
       query["returnRequest.status"] = returnStatus;
     }
 
+    if (clientId) {
+      query.client = clientId;
+    }
+
     const orders = await Order.find(query)
       .populate("client", "name email")
       .sort({ createdAt: -1 });
@@ -128,6 +132,102 @@ router.get("/orders", authenticate, authorize("admin"), async (req, res) => {
     return res.json(orders);
   } catch (error) {
     return res.status(500).json({ message: "Unable to fetch admin orders", error: error.message });
+  }
+});
+
+router.get("/pending-payments", authenticate, authorize("admin"), async (req, res) => {
+  try {
+    const orders = await Order.find({
+      "payment.pendingPayment": { $exists: true, $ne: null },
+    })
+      .populate("client", "name email phone")
+      .sort({ "payment.pendingPayment.submittedAt": -1 });
+
+    return res.json(orders);
+  } catch (error) {
+    return res.status(500).json({ message: "Unable to fetch pending payments", error: error.message });
+  }
+});
+
+router.post("/verify-payment", authenticate, authorize("admin"), async (req, res) => {
+  try {
+    const { orderId, action, amount } = req.body;
+
+    if (!orderId || !action) {
+      return res.status(400).json({ message: "Order ID and action are required" });
+    }
+
+    const order = await Order.findOne({ _id: orderId });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    if (!order.payment.pendingPayment) {
+      return res.status(400).json({ message: "No pending payment found" });
+    }
+
+    const pending = order.payment.pendingPayment;
+    const verifyAmount = amount || pending.amount;
+
+    if (action === "approve") {
+      const transaction = new Transaction({
+        order: order._id,
+        client: order.client,
+        type: "payment",
+        method: pending.method,
+        status: "success",
+        amount: verifyAmount,
+        gatewayReference: pending.transactionRef,
+        notes: `Offline payment verified - ${pending.method}`,
+      });
+      await transaction.save();
+
+      order.payment.status = "paid";
+      order.payment.amountPaid = verifyAmount;
+      order.payment.lastPaidAt = new Date();
+      order.payment.pendingPayment = undefined;
+      if (verifyAmount >= order.pricing.finalPrice) {
+        order.status = "accepted";
+      }
+    } else if (action === "reject") {
+      order.payment.pendingPayment = undefined;
+    }
+
+    await order.save();
+
+    return res.json({
+      success: true,
+      message: action === "approve" ? "Payment verified successfully" : "Payment rejected",
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Unable to verify payment", error: error.message });
+  }
+});
+
+router.delete("/orders", authenticate, authorize("admin"), async (req, res) => {
+  try {
+    const result = await Order.deleteMany({});
+    return res.json({ message: `${result.deletedCount} orders deleted` });
+  } catch (error) {
+    return res.status(500).json({ message: "Unable to delete orders", error: error.message });
+  }
+});
+
+router.delete("/users", authenticate, authorize("admin"), async (req, res) => {
+  try {
+    const result = await User.deleteMany({ role: "client" });
+    return res.json({ message: `${result.deletedCount} client users deleted` });
+  } catch (error) {
+    return res.status(500).json({ message: "Unable to delete users", error: error.message });
+  }
+});
+
+router.delete("/transactions", authenticate, authorize("admin"), async (req, res) => {
+  try {
+    const result = await Transaction.deleteMany({});
+    return res.json({ message: `${result.deletedCount} transactions deleted` });
+  } catch (error) {
+    return res.status(500).json({ message: "Unable to delete transactions", error: error.message });
   }
 });
 

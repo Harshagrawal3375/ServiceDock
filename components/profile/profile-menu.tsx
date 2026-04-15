@@ -10,6 +10,9 @@ import {
   Shield,
   LayoutDashboard,
   LogOut,
+  Settings,
+  FileArchive,
+  ArrowRightLeft,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { clearAuthSession } from "@/lib/auth"
@@ -20,8 +23,10 @@ export function ProfileMenu() {
   const { user } = useAuthUser()
 
   const handleLogout = () => {
-    clearAuthSession()
-    router.push("/login")
+    if (confirm("Are you sure you want to logout?")) {
+      clearAuthSession()
+      router.push("/login")
+    }
   }
 
   return (
@@ -43,18 +48,56 @@ export function ProfileMenu() {
           </Link>
 
           {user?.role === "admin" ? (
-            <Link
-              href="/dashboard"
-              className="flex items-center justify-between p-4 transition-colors hover:bg-muted/50"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-info/10">
-                  <LayoutDashboard className="h-5 w-5 text-info" />
+            <>
+              <Link
+                href="/dashboard"
+                className="flex items-center justify-between border-b border-border p-4 transition-colors hover:bg-muted/50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-info/10">
+                    <LayoutDashboard className="h-5 w-5 text-info" />
+                  </div>
+                  <span className="font-medium text-foreground">Admin Dashboard</span>
                 </div>
-                <span className="font-medium text-foreground">Admin Dashboard</span>
-              </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            </Link>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </Link>
+              <Link
+                href="/admin/settings"
+                className="flex items-center justify-between border-b border-border p-4 transition-colors hover:bg-muted/50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                    <Settings className="h-5 w-5 text-primary" />
+                  </div>
+                  <span className="font-medium text-foreground">Service Pricing</span>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </Link>
+              <Link
+                href="/admin/compressor"
+                className="flex items-center justify-between border-b border-border p-4 transition-colors hover:bg-muted/50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-warning/10">
+                    <FileArchive className="h-5 w-5 text-warning" />
+                  </div>
+                  <span className="font-medium text-foreground">PDF Compressor</span>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </Link>
+              <Link
+                href="/admin/converter"
+                className="flex items-center justify-between p-4 transition-colors hover:bg-muted/50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-info/10">
+                    <ArrowRightLeft className="h-5 w-5 text-info" />
+                  </div>
+                  <span className="font-medium text-foreground">File Converter</span>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </Link>
+            </>
           ) : null}
         </div>
       </div>

@@ -63,7 +63,7 @@ const shutdown = (exitCode = 0) => {
 const startProcess = (label, args, color) => {
   const child = spawn(npmCmd, args, {
     stdio: ["inherit", "pipe", "pipe"],
-    shell: false,
+    shell: true,
   });
 
   child.stdout.on("data", (data) => {

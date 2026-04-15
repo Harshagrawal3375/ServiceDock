@@ -16,13 +16,14 @@ export function BottomNav() {
       { href: "/", icon: Home, label: "Home" },
       { href: "/orders", icon: ClipboardList, label: "Orders" },
       { href: "/chat", icon: MessageCircle, label: "Chat" },
+      { href: "/profile", icon: User, label: "Profile" },
     ]
 
     if (user?.role === "admin") {
-      return [...baseItems, { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" }]
+      return [...baseItems, { href: "/dashboard", icon: LayoutDashboard, label: "Admin" }]
     }
 
-    return [...baseItems, { href: "/profile", icon: User, label: "Profile" }]
+    return baseItems
   }, [user?.role])
 
   return (

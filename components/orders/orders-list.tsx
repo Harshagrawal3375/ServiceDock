@@ -27,6 +27,9 @@ interface OrderItem {
   pricing: {
     finalPrice: number
   }
+  payment: {
+    status: "unpaid" | "partial" | "paid" | "refunded"
+  }
 }
 
 const serviceLabelMap: Record<string, string> = {
@@ -35,6 +38,7 @@ const serviceLabelMap: Record<string, string> = {
   ppt: "PPT Making",
   project: "Mini Project",
   resume: "Resume Builder",
+  demo: "Demo Service",
   other: "Other Academic Help",
 }
 
@@ -91,6 +95,7 @@ export function OrdersList() {
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
+      if (order.payment?.status === "unpaid") return false
       if (activeTab === "all") return true
       if (activeTab === "pending") return ["pending", "accepted"].includes(order.status)
       if (activeTab === "active") return order.status === "in-progress"

@@ -1,5 +1,6 @@
 "use client"
 
+import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
@@ -103,6 +104,8 @@ const formatDateTime = (date?: string) => {
 const formatPrice = (amount: number, currency = "INR") => `${currency} ${amount.toFixed(2)}`
 
 export function OrderDetail({ orderId }: OrderDetailProps) {
+  const searchParams = useSearchParams()
+  const paymentStatus = searchParams.get("payment")
   const [order, setOrder] = useState<OrderResponse | null>(null)
   const [transactions, setTransactions] = useState<TransactionItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -111,6 +114,8 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
   const [returnReason, setReturnReason] = useState("")
   const [refundAmount, setRefundAmount] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showCancel, setShowCancel] = useState(false)
+  const [cancelReason, setCancelReason] = useState("")
   const { user: currentUser } = useAuthUser()
 
   const loadData = async () => {
@@ -188,6 +193,27 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
     }
   }
 
+  const handleCancelOrder = async () => {
+    if (!order) return
+    setActionMessage("")
+    setIsSubmitting(true)
+
+    try {
+      const result = await apiRequest<{message: string, refunded: boolean, refundAmount: number}>(`/api/orders/${order._id}/cancel`, {
+        method: "DELETE",
+      })
+      setActionMessage(result.message + (result.refunded ? ` Refund: ₹${result.refundAmount}` : ""))
+      await loadData()
+      setShowCancel(false)
+      setCancelReason("")
+    } catch (err) {
+      if (err instanceof ApiError) setActionMessage(err.message)
+      else setActionMessage("Unable to cancel order")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   if (loading) {
     return <div className="h-64 animate-pulse rounded-xl bg-muted" />
   }
@@ -202,6 +228,11 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
 
   return (
     <div className="space-y-6">
+      {paymentStatus === "success" && (
+        <div className="rounded-xl border border-success/20 bg-success/10 p-4 text-sm text-success">
+          Payment successful! Your order is now confirmed.
+        </div>
+      )}
       <div className="rounded-xl border border-border bg-card p-5">
         <div className="mb-4 flex items-start justify-between">
           <div>
@@ -291,6 +322,14 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             <p className="font-semibold capitalize text-foreground">{order.payment.status}</p>
           </div>
         </div>
+        {order.payment.status !== "paid" && currentUser?.role === "client" && (
+          <Button className="mt-4 w-full" asChild>
+            <Link href={`/pay?orderId=${order._id}`}>
+              <IndianRupee className="mr-2 h-4 w-4" />
+              Pay Now
+            </Link>
+          </Button>
+        )}
       </div>
 
       <div className="rounded-xl border border-border bg-card p-5">
@@ -379,6 +418,34 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
           <Button className="mt-3 w-full" disabled={isSubmitting} onClick={requestReturn}>
             Request Return & Refund
           </Button>
+        </div>
+      ) : null}
+
+      {currentUser?.role === "client" && !["completed", "returned", "refunded", "cancelled"].includes(order.status) ? (
+        <div className="rounded-xl border border-border bg-card p-5">
+          {!showCancel ? (
+            <Button variant="destructive" className="w-full" onClick={() => setShowCancel(true)}>
+              Cancel Order & Request Refund
+            </Button>
+          ) : (
+            <div className="space-y-3">
+              <p className="font-semibold text-destructive">Cancel this order?</p>
+              <textarea
+                className="min-h-[90px] w-full rounded-lg border border-input bg-background p-3 text-sm outline-none focus:border-primary"
+                placeholder="Reason for cancellation..."
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <Button variant="destructive" className="flex-1" disabled={isSubmitting} onClick={handleCancelOrder}>
+                  Confirm Cancel
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={() => setShowCancel(false)}>
+                  Keep Order
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       ) : null}
 

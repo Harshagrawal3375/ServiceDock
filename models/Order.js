@@ -91,6 +91,16 @@ const orderSchema = new mongoose.Schema({
       default: "INR",
     },
     lastPaidAt: Date,
+    pendingPayment: {
+      method: {
+        type: String,
+        enum: ["upi", "bank-transfer", "cash", "other"],
+      },
+      transactionRef: String,
+      amount: Number,
+      note: String,
+      submittedAt: Date,
+    },
   },
   delivery: {
     note: {
