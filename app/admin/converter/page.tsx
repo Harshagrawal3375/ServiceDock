@@ -1,5 +1,11 @@
 "use client"
 
+declare global {
+  interface Window {
+    html2pdf: any
+  }
+}
+
 import { useState, useRef } from "react"
 import { AppShell } from "@/components/app-shell"
 import { PageHeader } from "@/components/page-header"
@@ -72,6 +78,20 @@ export default function ConverterPage() {
     }
   }
 
+  const loadHtml2Pdf = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if ((window as any).html2pdf) {
+        resolve((window as any).html2pdf)
+        return
+      }
+      const script = document.createElement("script")
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"
+      script.onload = () => resolve((window as any).html2pdf)
+      script.onerror = reject
+      document.head.appendChild(script)
+    })
+  }
+
   const handleConvert = async () => {
     if (!selectedFile) return
 
@@ -79,9 +99,9 @@ export default function ConverterPage() {
     setError("")
 
     try {
-      let convertedBlob: Blob
-      let outputMime: string
-      let outputExt: string
+      let convertedBlob: Blob | null = null
+      let outputMime: string = ""
+      let outputExt: string = ""
 
       if (conversionType === "jpg-to-pdf") {
         if (!selectedFile.type.startsWith("image/")) {
@@ -106,6 +126,50 @@ export default function ConverterPage() {
         outputMime = "application/pdf"
         outputExt = "pdf"
       } 
+      else if (conversionType === "word-to-pdf") {
+        const fileName = selectedFile.name.toLowerCase()
+        if (!fileName.endsWith(".docx") && !fileName.endsWith(".doc")) {
+          throw new Error("Please select a Word file (.docx or .doc)")
+        }
+        
+        const mammoth = await import("mammoth")
+        const arrayBuffer = await selectedFile.arrayBuffer()
+        const result = await mammoth.convertToHtml({ arrayBuffer })
+        const htmlContent = result.value
+        
+        const container = document.createElement("div")
+        container.innerHTML = `
+          <div style="font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; width: 595px;">
+            ${htmlContent}
+          </div>
+        `
+        container.style.position = "fixed"
+        container.style.top = "-9999px"
+        container.style.left = "-9999px"
+        document.body.appendChild(container)
+        
+        const html2pdf = await loadHtml2Pdf()
+        
+        await new Promise<void>((resolve) => {
+          const converter = html2pdf()
+          converter.set({
+            margin: 10,
+            filename: "converted.pdf",
+            image: { type: "jpeg", quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+          })
+          converter.from(container)
+          converter.outputPdf((blob: Blob) => {
+            convertedBlob = blob
+            outputMime = "application/pdf"
+            outputExt = "pdf"
+            resolve()
+          })
+        })
+        
+        document.body.removeChild(container)
+      }
       else if (conversionType === "pdf-to-jpg") {
         if (selectedFile.type !== "application/pdf") {
           throw new Error("Please select a PDF file")
@@ -114,7 +178,7 @@ export default function ConverterPage() {
         
         const canvas = document.createElement("canvas")
         const ctx = canvas.getContext("2d")
-        const img = new Image()
+        const img = new window.Image()
         
         const objectUrl = URL.createObjectURL(selectedFile)
         await new Promise<void>((resolve, reject) => {
@@ -143,9 +207,11 @@ export default function ConverterPage() {
         return
       }
 
-      const url = URL.createObjectURL(convertedBlob)
-      setResultUrl(url)
-      setResultFileName(`converted.${outputExt}`)
+      if (convertedBlob) {
+        const url = URL.createObjectURL(convertedBlob)
+        setResultUrl(url)
+        setResultFileName(`converted.${outputExt}`)
+      }
     } catch (err: any) {
       setError(err.message || "Conversion failed")
       console.error(err)
